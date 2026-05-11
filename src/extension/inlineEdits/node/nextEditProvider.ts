@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from 'path';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
@@ -13,6 +13,7 @@ import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursor
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { TrimNESResponseSuffixOverlap } from '../../../platform/inlineEdits/common/trimNESResponseSuffixOverlap';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/historyContextProvider';
 import { IXtabHistoryEditEntry, IXtabHistoryEntry, NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
@@ -453,7 +454,28 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setStatus('notAccepted'); // Acceptance pending.
 
-		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: edit.actualEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit, cacheEntry });
+		// NOTE - 对 edit 进行 overlap trimming
+		let finalEdit = edit.actualEdit;
+		if (currentDocument) {
+			const threshold = vscode.workspace.getConfiguration("github.copilot.hackModels.next").get("similarity_threshold", 0.9);
+			const lineReplacement = LineEdit.fromStringEdit(new StringEdit([edit.actualEdit]), currentDocument).replacements[0];
+			if (lineReplacement) {
+				// 获取 document lines 用于 suffix 计算
+				const documentLines = currentDocument.getLines();
+				const suffixLines = documentLines.slice(lineReplacement.lineRange.endLineNumberExclusive - 1);
+				const overlapCount = TrimNESResponseSuffixOverlap.calculateOverlap(lineReplacement.newLines, suffixLines, threshold, true);
+				if (overlapCount > 0) {
+					const trimmedLineReplacement = new LineReplacement(
+						lineReplacement.lineRange,
+						lineReplacement.newLines.slice(0, lineReplacement.newLines.length - overlapCount)
+					);
+					finalEdit = trimmedLineReplacement.toSingleEdit(currentDocument);
+				}
+			}
+		}
+
+		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: finalEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit, cacheEntry });
+		// NOTE - trim end
 
 		telemetryBuilder.setHasNextEdit(true);
 

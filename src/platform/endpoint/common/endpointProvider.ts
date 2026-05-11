@@ -63,7 +63,10 @@ export type IEmbeddingModelCapabilities = {
 	type: 'embeddings';
 	family: string;
 	tokenizer: TokenizerType;
-	limits?: { max_inputs?: number };
+	limits?: {
+		max_inputs?: number,
+		max_token?: number,
+	};
 };
 
 type ICompletionModelCapabilities = {

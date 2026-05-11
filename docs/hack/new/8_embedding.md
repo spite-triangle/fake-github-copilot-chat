@@ -8,13 +8,13 @@
 
 ```ts
 export type IEmbeddingModelCapabilities = {
-    type: 'embeddings';
-    family: string;
-    tokenizer: TokenizerType;
-    limits?: {
-        max_inputs?: number,
-        max_token?: number,
-    };
+	type: 'embeddings';
+	family: string;
+	tokenizer: TokenizerType;
+	limits?: {
+		max_inputs?: number,
+		max_token?: number,
+	};
 };
 ```
 
@@ -101,7 +101,7 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 - 修改函数实现
 
 ```ts
-private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl | undefined> {
+	private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl | undefined> {
     // NOTE - 不校验，直接注释掉
     // if (!this._authenticationService.copilotToken || this._authenticationService.copilotToken.isNoAuthUser) {
     // 	return undefined;
@@ -131,3 +131,7 @@ private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl 
 }
 ```
 
+---
+
+## 修改完成时间
+2026/05/12

@@ -119,9 +119,10 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 	}
 
 	private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl | undefined> {
-		if (!this._authenticationService.copilotToken || this._authenticationService.copilotToken.isNoAuthUser) {
-			return undefined;
-		}
+		// NOTE - 不校验，直接注释掉
+		// if (!this._authenticationService.copilotToken || this._authenticationService.copilotToken.isNoAuthUser) {
+		// 	return undefined;
+		// }
 
 		if (this._impl) {
 			return this._impl;
@@ -131,8 +132,10 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 		type TryInitOutcome = 'success' | 'noEmbeddingType' | 'alreadyInitialized' | 'error';
 		let outcome: TryInitOutcome = 'noEmbeddingType';
 		try {
-			const best = await this._availableEmbeddingTypes.getPreferredType(silent);
+			// const best = await this._availableEmbeddingTypes.getPreferredType(silent);
 			// Double check that we haven't initialized in the meantime
+			// NOTE - 不获取直接写死
+			const best = new EmbeddingType('text-embedding-3-small-512');
 			if (this._impl) {
 				outcome = 'alreadyInitialized';
 				return this._impl;

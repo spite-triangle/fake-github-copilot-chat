@@ -323,6 +323,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: embedding_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_inputs: embedding_config.get("capabilities.limits.max_inputs", 10),
+							max_token: embedding_config.get("capabilities.limits.max_token", 8192),
 						},
 					},
 					billing: {

@@ -63,50 +63,22 @@ export class GithubAvailableEmbeddingTypesService implements IGithubAvailableEmb
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		this._cached = this._authService.getGitHubSession('any', { silent: true }).then(session => {
-			if (!session) {
-				return Result.error<GetAvailableTypesError>({ type: 'noSession' });
-			}
-
-			return this.doGetAvailableTypes(session.accessToken);
-		});
+		// NOTE - 写死返回
+		this._cached = (async () => {
+			const primary: EmbeddingType[] = [];
+			const deprecated: EmbeddingType[] = [];
+			primary.push(new EmbeddingType('text-embedding-3-small-512'));
+			return Result.ok({ primary, deprecated });
+		})();
 	}
 
+	// NOTE - 写死返回
 	private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
-		if (this._cached) {
-			const oldCached = this._cached;
-			try {
-				const cachedResult = await this._cached;
-				if (cachedResult.isOk()) {
-					return cachedResult;
-				}
-			} catch {
-				// noop
-			}
-
-			if (this._cached === oldCached) {
-				this._cached = undefined;
-			}
-		}
-
-		this._cached ??= (async () => {
-			const anySession = await this._authService.getGitHubSession('any', { silent });
-			if (!anySession) {
-				return Result.error<GetAvailableTypesError>({ type: 'noSession' });
-			}
-
-			const initialResult = await this.doGetAvailableTypes(anySession.accessToken);
-			if (initialResult.isOk()) {
-				return initialResult;
-			}
-
-			const permissiveSession = silent
-				? await this._authService.getGitHubSession('permissive', { silent })
-				: await this._authService.getGitHubSession('permissive', { createIfNone: { detail: l10n.t('Sign in to GitHub with additional permissions to use workspace embeddings.') } });
-			if (!permissiveSession) {
-				return initialResult;
-			}
-			return this.doGetAvailableTypes(permissiveSession.accessToken);
+		this._cached = (async () => {
+			const primary: EmbeddingType[] = [];
+			const deprecated: EmbeddingType[] = [];
+			primary.push(new EmbeddingType('text-embedding-3-small-512'));
+			return Result.ok({ primary, deprecated });
 		})();
 
 		return this._cached;

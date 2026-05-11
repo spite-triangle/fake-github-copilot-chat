@@ -5,8 +5,8 @@
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { Raw } from '@vscode/prompt-tsx';
-import { workspace } from 'vscode';
 import type { CancellationToken } from 'vscode';
+import { workspace } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ITokenizer, TokenizerType } from '../../../util/common/tokenizer';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
@@ -16,7 +16,7 @@ import { Source } from '../../chat/common/chatMLFetcher';
 import type { ChatLocation, ChatResponse } from '../../chat/common/commonTypes';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { CustomModel, EndpointEditToolName } from '../../endpoint/common/endpointProvider';
-import { ILogService, collectSingleLineErrorMessage } from '../../log/common/logService';
+import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { AnthropicMessagesTool, ContextManagement } from './anthropic';
@@ -485,6 +485,7 @@ function networkRequest(
 		if (modelConfig) {
 			apiKey = modelConfig.apiKey;
 			url = modelConfig.baseUrl;
+			body.model = modelConfig.model;
 
 			// 根据 RequestType 设置 URL 路径
 			if (typeof endpoint.urlOrRequestMetadata !== 'string' && 'type' in endpoint.urlOrRequestMetadata) {

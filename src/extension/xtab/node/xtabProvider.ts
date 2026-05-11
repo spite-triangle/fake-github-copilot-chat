@@ -25,7 +25,6 @@ import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/i
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
 import { EditStreaming, EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { editWouldDeleteWhatWasJustInserted, editWouldDeleteWhatWasJustInserted2, IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges, IgnoreWhitespaceOnlyChanges } from '../../../platform/inlineEdits/common/statelessNextEditProviders';
-import { TrimNESResponseSuffixOverlap } from '../../../platform/inlineEdits/common/trimNESResponseSuffixOverlap';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { ContextKind, SnippetContext } from '../../../platform/languageServer/common/languageContextService';
@@ -1576,8 +1575,6 @@ ${prediction.content}
 		const filters: EditFilter[] = [
 			(edits) => ({ filterName: 'IgnoreImportChangesAspect', filteredEdits: IgnoreImportChangesAspect.filterEdit(activeDoc, edits, allowImportChanges) }),
 			(edits) => ({ filterName: 'IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges', filteredEdits: IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges.filterEdit(activeDoc, edits) }),
-			// NOTE - 追加 TrimNESResponseSuffixOverlap
-			(edits) => ({ filterName: 'TrimNESResponseSuffixOverlap', filteredEdits: TrimNESResponseSuffixOverlap.filterEdit(activeDoc, edits, 0.85) }),
 		];
 
 		if (!this.configService.getExperimentBasedConfig(ConfigKey.InlineEditsAllowWhitespaceOnlyChanges, this.expService)) {
