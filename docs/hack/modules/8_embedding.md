@@ -40,38 +40,6 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 }
 ```
 
-## 模型查询
-
-- 文件 `src\platform\workspaceChunkSearch\common\githubAvailableEmbeddingTypes.ts`
-- 类 ： `GithubAvailableEmbeddingTypesService`
-- 修改构造函数实现 与 `getAllAvailableTypes` 实现
-
-```ts
-    constructor(
-        /* .... */
-    ) {
-        // NOTE - 写死返回
-        this._cached = (async () => {
-            const primary: EmbeddingType[] = [];
-            const deprecated: EmbeddingType[] = [];
-            primary.push(new EmbeddingType('text-embedding-3-small-512'));
-            return Result.ok({ primary, deprecated });
-        })();
-    }
-
-
-    // NOTE - 写死返回
-    private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
-        this._cached = (async () => {
-            const primary: EmbeddingType[] = [];
-            const deprecated: EmbeddingType[] = [];
-            primary.push(new EmbeddingType('text-embedding-3-small-512'));
-            return Result.ok({ primary, deprecated });
-        })();
-
-        return this._cached;
-    }
-```
 
 ## 远程 embeddings 获取
 
@@ -85,12 +53,14 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
     ): Promise<Embeddings> {
         /* .... */
 
-        // NOTE - 替换实现
-        return await logExecTime(this._logService, 'RemoteEmbeddingsComputer::computeEmbeddings', async () => {
+        // Determine endpoint type: use CAPI for no-auth users, otherwise use GitHub
+        const copilotToken = await this._authService.getCopilotToken();
+        // NOTE - 强制开启走 computeCAPIEmbeddings
+        if (copilotToken) {
             const embeddings = await this.computeCAPIEmbeddings(inputs, options, cancellationToken);
             return embeddings ?? { type: embeddingType, values: [] };
-        });
-        // NOTE - 替换结束
+        }
+
 
         /* ... */
     }

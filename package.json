@@ -1,6 +1,6 @@
 {
-	"name": "fake-copilot-chat",
-	"displayName": "Fake GitHub Copilot Chat",
+	"name": "copilot-chat",
+	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
 	"version": "0.47.20260512",
 	"build": "1",
@@ -5131,12 +5131,10 @@
 									"model": {
 										"type": "string"
 									},
-									"similarityThreshold": {
-										"type": "number"
-									},
-									"modify_suffix": {
-										"type": "boolean",
-										"default": true
+									"similarity_threshold": {
+										"type": "number",
+										"maximum": 1,
+										"minimum": 0
 									},
 									"mode": {
 										"type": "string",
@@ -5225,9 +5223,10 @@
 									"model": {
 										"type": "string"
 									},
-									"remove_code_mark": {
-										"type": "boolean",
-										"default": true
+									"similarity_threshold": {
+										"type": "number",
+										"maximum": 1,
+										"minimum": 0
 									},
 									"version": {
 										"type": "string",

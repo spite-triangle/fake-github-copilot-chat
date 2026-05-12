@@ -8,9 +8,11 @@
 -  支持 `^vscode 1.119.0` 版本
 -  支持 `^vscode 1.119.0` 版本
 
->[!note]
-> 1. 正式版 `vscode` 的 `ghost` 行内补全有 BUG，建议使用 `insider` 版本
-> 2. 在使用该插件前，需要删除内置的 `{vscode_install_folder}/resources/app/extensions/copilot` 插件
+## 使用
+
+1. 找到 `{vscode_install_folder}/resources/app/extensions/` 内置插件位置
+2. 删除 `copilot` 内置插件
+3. 解压 `copilot.zip` 压缩包，替换原来的 `copilot` 内置插件
 
 ## 功能描述
 
@@ -43,14 +45,14 @@
         "apiKey": "",
         "baseUrl": "",
         "model": "",
-        "remove_prefix": false,    // 当 inline suggestions 出现 , `if(|(a > 0)` 的情况，需要开启
+        "similarity_threshold": 0.5, // 去除 suffix 的相似度阈值，0 ~ 1
     },
     "next": {                       // next 建议、文档修改合并、subagent 搜索等，建议使用响应快的模型
                                     // NOTE - 只支持 /v1/chat/completions 接口
         "apiKey": "",
         "baseUrl": "",
         "model": "gpt-4.1-mini",
-        "remove_code_mark": false, // 当前 next suggestions 出现 '```cpp' 的情况需要开启
+        "similarity_threshold": 0.85, // 去除 suffix 的相似度阈值，0 ~ 1
     },
     "next-junior": {                       // next 辅助模型，专门用于处理文档修改合并、subagent 搜索等，让 next 只关注  next suggestions
                                             // NOTE - 只支持 /v1/chat/completions 接口

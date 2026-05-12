@@ -184,7 +184,9 @@
                     "type": "string"
                 },
                 "similarity_threshold": {
-					"type": "number"
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
                 },
                 "mode": {
                     "type": "string",
@@ -274,11 +276,9 @@
                     "type": "string"
                 },
                 "similarity_threshold": {
-					"type": "number"
-                },
-                "remove_code_mark": {
-                    "type": "boolean",
-                    "default": true
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
                 },
                 "version": {
                     "type": "string",
