@@ -15,40 +15,45 @@ get entitlement() {
     //             : this.a.getContextKeyValue($n.Entitlement.signedOut.key) === !0
     //               ? os.Unknown
     //               : os.Unresolved;
-    return os.Free;
+    return 5;
   }
   get isInternal() {
-    return this.a.getContextKeyValue($n.Entitlement.internal.key) === !0;
+    return 1;
   }
   get organisations() {
     // return this.a.getContextKeyValue($n.Entitlement.organisations.key);
-    return ["xx"];
+    return ["551cca60ce19654d894e786220822482"];
 
   }
   get sku() {
     // return this.a.getContextKeyValue($n.Entitlement.sku.key);
     return "free_limited_copilot";
   }
-get sentiment() {
-    // return {
-    //   installed: this.a.getContextKeyValue($n.Setup.installed.key) === !0,
-    //   hidden: this.a.getContextKeyValue($n.Setup.hidden.key) === !0,
-    //   disabled: this.a.getContextKeyValue($n.Setup.disabled.key) === !0,
-    //   untrusted: this.a.getContextKeyValue($n.Setup.untrusted.key) === !0,
-    //   later: this.a.getContextKeyValue($n.Setup.later.key) === !0,
-    //   registered: this.a.getContextKeyValue($n.Setup.registered.key) === !0,
-    // };
+  get sentiment() {
     return {
-       installed: this.a.getContextKeyValue($n.Setup.installed.key) === !0,
-      hidden: this.a.getContextKeyValue($n.Setup.hidden.key) === !0,
-      disabled: false,
-      untrusted: false,
-      later: this.a.getContextKeyValue($n.Setup.later.key) === !0,
-      registered: true,
+      completed:
+        true,
+      installed:
+        true,
+      hidden:
+        this.contextKeyService.getContextKeyValue(br.Setup.hidden.key) === !0,
+      disabledInWorkspace:
+        this.contextKeyService.getContextKeyValue(
+          br.Setup.disabledInWorkspace.key,
+        ) === !0,
+      disabled:
+        false,
+      untrusted:
+        false,
+      later:
+        this.contextKeyService.getContextKeyValue(br.Setup.later.key) === !0,
+      registered:
+        true,
     };
   }
   get anonymous() {
-    // return l_e(this.b, this.entitlement, this.sentiment);
-    return false;
+    return false
   }
 ```
+
+测试一下

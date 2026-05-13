@@ -189,7 +189,7 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 			enterprise_list: null,
 			limited_user_quotas: null,
 			limited_user_reset_date: null,
-			organization_list: ["184531bbdd2fc3x8eee45c6c7e42aeb6"]
+			organization_list: ["551cca60ce19654d894e786220822482"]
 		};
 
 		tokenInfo.expires_at = nowSeconds() + tokenInfo.refresh_in + 60; // extra buffer to allow refresh to happen successfully
