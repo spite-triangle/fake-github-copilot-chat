@@ -458,12 +458,13 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		let finalEdit = edit.actualEdit;
 		if (currentDocument) {
 			const threshold = vscode.workspace.getConfiguration("github.copilot.hackModels.next").get("similarity_threshold", 0.85);
+			const type = vscode.workspace.getConfiguration("github.copilot.hackModels.next").get("similarity_type", "high");
 			const lineReplacement = LineEdit.fromStringEdit(new StringEdit([edit.actualEdit]), currentDocument).replacements[0];
 			if (lineReplacement) {
 				// 获取 document lines 用于 suffix 计算
 				const documentLines = currentDocument.getLines();
 				const suffixLines = documentLines.slice(lineReplacement.lineRange.endLineNumberExclusive - 1);
-				const overlapCount = TrimNESResponseSuffixOverlap.calculateOverlap(lineReplacement.newLines, suffixLines, threshold, false);
+				const overlapCount = new TrimNESResponseSuffixOverlap(threshold, type).calculateOverlap(lineReplacement.newLines, suffixLines);
 				if (overlapCount > 0) {
 					const trimmedLineReplacement = new LineReplacement(
 						lineReplacement.lineRange,

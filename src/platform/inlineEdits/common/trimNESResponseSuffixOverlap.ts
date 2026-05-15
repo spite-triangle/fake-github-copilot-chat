@@ -12,15 +12,16 @@ import { StatelessNextEditDocument } from './statelessNextEditProvider';
  * approximate matches and tolerate empty lines.
  */
 export class TrimNESResponseSuffixOverlap {
-	/**
-	 * Calculate overlap count between two string arrays using Levenshtein-based similarity.
-	 * This is the reusable core algorithm shared by NES and inline completion post-processing.
-	 * @param newLines - The new lines to check for overlap (e.g., completion result lines)
-	 * @param suffixLines - The target suffix lines (e.g., document suffix after cursor)
-	 * @param similarityThreshold - 相似度阈值，默认 0.5 (与 GhostTextComputer 保持一致)
-	 * @returns The number of lines from newLines that overlap with suffixLines
-	 */
-	public static calculateOverlap(newLines: readonly string[], suffixLines: string[], similarityThreshold: number = 0.5, skipLastLine: boolean = true): number {
+
+	constructor(
+		public readonly similarityThreshold: number,
+		public readonly type: "low" | "high"
+	) {
+
+	}
+
+
+	public calculateOverlap(newLines: readonly string[], suffixLines: string[]): number {
 		// Extract non-empty lines with their original indices
 		const newLinesMapped = this._mapNonEmpty(newLines);
 		const suffixMapped = this._mapNonEmpty(suffixLines);
@@ -29,7 +30,7 @@ export class TrimNESResponseSuffixOverlap {
 			return 0;
 		}
 
-		const overlap = this._findOverlapBySimilarity(newLinesMapped, suffixMapped, similarityThreshold, skipLastLine);
+		const overlap = this._findOverlapBySimilarity(newLinesMapped, suffixMapped);
 		if (overlap === 0) {
 			return 0;
 		}
@@ -40,20 +41,10 @@ export class TrimNESResponseSuffixOverlap {
 		return trimUpToOrigIdx + 1;
 	}
 
-	/**
-	 * Apply suffix overlap trimming to a single edit, using the document to get suffix lines.
-	 * This is the recommended method for NES provider to use before yielding edits.
-	 * @param edit - The edit to trim
-	 * @param doc - The document context (provides suffix lines after the edit range)
-	 * @param similarityThreshold - 相似度阈值，默认 0.5
-	 * @param skipLastLine - 是否跳过最后一行进行匹配，默认 true
-	 * @returns The trimmed edit if overlap is found, otherwise the original edit
-	 */
-	public static trimEditWithDocument(
+	public trimEditWithDocument(
 		edit: LineReplacement,
 		doc: StatelessNextEditDocument,
-		similarityThreshold: number = 0.5,
-		skipLastLine: boolean = true
+		similarityThreshold: number = 0.5
 	): LineReplacement {
 		// Get document lines after the edit range (i.e., what follows the code_to_edit area)
 		const suffixLines = doc.documentAfterEditsLines.slice(edit.lineRange.endLineNumberExclusive - 1);
@@ -61,7 +52,7 @@ export class TrimNESResponseSuffixOverlap {
 			return edit;
 		}
 
-		const overlapCount = this.calculateOverlap(edit.newLines, suffixLines, similarityThreshold, skipLastLine);
+		const overlapCount = this.calculateOverlap(edit.newLines, suffixLines);
 		if (overlapCount === 0) {
 			return edit;
 		}
@@ -77,11 +68,11 @@ export class TrimNESResponseSuffixOverlap {
 	 * @param similarityThreshold - 相似度阈值，默认 0.5 (与 GhostTextComputer 保持一致)
 	 * @deprecated Use trimEditWithDocument() for better integration with NES provider
 	 */
-	public static filterEdit(resultDocument: StatelessNextEditDocument, edits: readonly LineReplacement[], similarityThreshold: number = 0.5, skipLastLine: boolean = false): readonly LineReplacement[] {
-		return edits.map(edit => this.trimEditWithDocument(edit, resultDocument, similarityThreshold, skipLastLine));
+	public filterEdit(resultDocument: StatelessNextEditDocument, edits: readonly LineReplacement[]): readonly LineReplacement[] {
+		return edits.map(edit => this.trimEditWithDocument(edit, resultDocument));
 	}
 
-	private static _mapNonEmpty(lines: readonly string[]): { origIdx: number; text: string }[] {
+	private _mapNonEmpty(lines: readonly string[]): { origIdx: number; text: string }[] {
 		const result: { origIdx: number; text: string }[] = [];
 		for (let i = 0; i < lines.length; i++) {
 			const trimmed = lines[i].trim();
@@ -92,49 +83,218 @@ export class TrimNESResponseSuffixOverlap {
 		return result;
 	}
 
-	/**
-	 * Core similarity algorithm adapted from GhostTextComputer.findSimilarityLineNumber.
-	 * Returns the number of non-empty lines from the start of `input` that overlap
-	 * with the beginning of `target`.
-	 * @param similarityThreshold - 相似度阈值
-	 */
-	private static _findOverlapBySimilarity(
+	private _levenshteinDistance(s1: string, s2: string): number {
+		const len1 = s1.length;
+		const len2 = s2.length;
+		const matrix: number[][] = [];
+
+		for (let i = 0; i <= len1; i++) {
+			matrix[i] = [i];
+		}
+		for (let j = 0; j <= len2; j++) {
+			matrix[0][j] = j;
+		}
+
+		for (let i = 1; i <= len1; i++) {
+			for (let j = 1; j <= len2; j++) {
+				const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+				matrix[i][j] = Math.min(
+					matrix[i - 1][j] + 1,
+					matrix[i][j - 1] + 1,
+					matrix[i - 1][j - 1] + cost
+				);
+			}
+		}
+		return matrix[len1][len2];
+	};
+
+	private _getLineSimilarity(s1: string, s2: string): number {
+		if (s1 === s2) return 1.0;
+		const distance = this._levenshteinDistance(s1, s2);
+		const maxLen = Math.max(s1.length, s2.length);
+		return maxLen === 0 ? 1.0 : 1.0 - distance / maxLen;
+	};
+
+	private _findOverlapBySimilarity(
 		input: { text: string }[],
-		target: { text: string }[],
-		similarityThreshold: number,
-		skipLastLine: boolean
+		target: { text: string }[]
 	): number {
-		const levenshteinDistance = (s1: string, s2: string): number => {
-			const len1 = s1.length;
-			const len2 = s2.length;
-			const matrix: number[][] = [];
+		if (this.type === "high") {
+			return this._findOverlapBySimilarityHigh(input, target);
+		} else {
+			return this._findOverlapBySimilarityLow(input, target);
+		}
+	}
 
-			for (let i = 0; i <= len1; i++) {
-				matrix[i] = [i];
-			}
-			for (let j = 0; j <= len2; j++) {
-				matrix[0][j] = j;
-			}
+	private _findOverlapBySimilarityHigh(
+		input: { text: string }[],
+		target: { text: string }[]
+	): number {
 
-			for (let i = 1; i <= len1; i++) {
-				for (let j = 1; j <= len2; j++) {
-					const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
-					matrix[i][j] = Math.min(
-						matrix[i - 1][j] + 1,
-						matrix[i][j - 1] + 1,
-						matrix[i - 1][j - 1] + cost
-					);
+		const commonLen = Math.min(input.length, target.length);
+		if (commonLen === 0) { return 0; }
+		const maxLen = Math.floor(commonLen / Math.min(this.similarityThreshold + 0.05, 1));
+		const inputLen = Math.min(input.length, maxLen);
+		const targetLen = Math.min(target.length, maxLen);
+
+		// 行相似度表
+		const lineSimilarityTable: number[][] = [];
+		for (let i = 0; i < inputLen; i++) {
+			lineSimilarityTable[i] = []
+			for (let j = 0; j < targetLen; j++) {
+				lineSimilarityTable[i][j] = this._getLineSimilarity(input[i].text, target[j].text);
+			}
+		}
+
+
+		let maxOverlap = 0;
+		let maxSimilarity = 0;
+
+		for (let i = 1; i <= inputLen; i++) {
+			const inputStart = inputLen - i;
+
+			const db: { count: number; score: number }[][] = [];
+			for (let a = 0; a <= i; a++) {
+				db[a] = [];
+				for (let b = 0; b <= targetLen; b++) {
+					db[a].push({ count: 0, score: 0 });
 				}
 			}
-			return matrix[len1][len2];
-		};
 
-		const getSimilarity = (s1: string, s2: string): number => {
-			if (s1 === s2) return 1.0;
-			const distance = levenshteinDistance(s1, s2);
-			const maxLen = Math.max(s1.length, s2.length);
-			return maxLen === 0 ? 1.0 : 1.0 - distance / maxLen;
-		};
+			// 第 input[i : inputLen] 的代码块与 target[1:targetLen] 进行最大公共子序列计算
+			// 物理意义为：bp[a][b] 表示经过 `a + b - result.count * 2` 次增加行、删减行， input[inputStart : inputLen] 就能变换成 target[1:b]
+			for (let a = 1; a <= i; a++) {
+				const inputIdx = inputStart + a - 1;
+				for (let b = 1; b <= targetLen; b++) {
+					const similarityLine = lineSimilarityTable[inputIdx][b - 1];
+
+					if (similarityLine >= 0.8) {
+						db[a][b].count = db[a - 1][b - 1].count + 1;
+						db[a][b].score = db[a - 1][b - 1].score + similarityLine;
+					} else {
+						if (db[a][b - 1].count > db[a - 1][b].count) {
+							db[a][b].count = db[a][b - 1].count;
+							db[a][b].score = db[a][b - 1].score;
+						} else {
+							db[a][b].count = db[a - 1][b].count;
+							db[a][b].score = db[a - 1][b].score;
+						}
+					}
+				}
+			}
+
+			for (let j = 1; j <= targetLen; j++) {
+				const result = db[i][j];
+				const similarity = result.score / (i + j - result.count);
+				if (similarity > maxSimilarity) {
+					maxOverlap = i;
+					maxSimilarity = similarity;
+				}
+			}
+		}
+
+		if (maxSimilarity > this.similarityThreshold) {
+
+			return maxOverlap;
+		} else {
+			return 0;
+		}
+	}
+
+
+	// private _findOverlapBySimilarityHigh(
+	// 	input: { text: string }[],
+	// 	target: { text: string }[]
+	// ): number {
+
+	// 	const commonLen = Math.min(input.length, target.length);
+	// 	if (commonLen === 0) { return 0; }
+	// 	const maxLen = Math.floor(commonLen / Math.min(this.similarityThreshold + 0.05, 1));
+	// 	const inputLen = Math.min(input.length, maxLen);
+	// 	const targetLen = Math.min(target.length, maxLen);
+
+	// 	// 行相似度表
+	// 	const lineSimilarityTable: number[][] = [];
+	// 	for (let i = 0; i < inputLen; i++) {
+	// 		lineSimilarityTable[i] = []
+	// 		for (let j = 0; j < targetLen; j++) {
+	// 			lineSimilarityTable[i][j] = this._getLineSimilarity(input[i].text, target[j].text);
+	// 		}
+	// 	}
+
+
+	// 	// inputRange 的行做 count 次增加行、删减行，便能与 targetRange 的行一样
+	// 	const getBlockSimilarity = (inputRange: { start: number, end: number }, targetRange: { start: number, end: number }) => {
+	// 		const inputRangeLen = inputRange.end - inputRange.start;
+	// 		const targetRangeLen = targetRange.end - targetRange.start;
+
+	// 		const db: { count: number, score: number }[][] = [];
+	// 		for (let i = 0; i <= inputRangeLen; i++) {
+	// 			db[i] = [];
+	// 			for (let j = 0; j <= targetRangeLen; j++) {
+	// 				db[i].push({ count: 0, score: 0 })
+	// 			}
+	// 		}
+
+	// 		for (let i = 1; i <= inputRangeLen; i++) {
+	// 			for (let j = 1; j <= targetRangeLen; j++) {
+	// 				const similarityLine = lineSimilarityTable[inputRange.start + i - 1][targetRange.start + j - 1];
+
+	// 				if (similarityLine >= 0.8) {
+	// 					db[i][j].count = db[i - 1][j - 1].count + 1;
+	// 					db[i][j].score = db[i - 1][j - 1].score + similarityLine;
+	// 				} else {
+	// 					if (db[i][j - 1].count > db[i - 1][j].count) {
+	// 						db[i][j].count = db[i][j - 1].count;
+	// 						db[i][j].score = db[i][j - 1].score;
+	// 					} else {
+	// 						db[i][j].count = db[i - 1][j].count;
+	// 						db[i][j].score = db[i - 1][j].score;
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 		return db[inputRangeLen][targetRangeLen];
+	// 	}
+
+	// 	let maxOverlap = 0;
+	// 	let maxSimilarity = 0;
+
+	// 	for (let i = 1; i <= inputLen; i++) {
+	// 		for (let j = 1; j <= targetLen; j++) {
+	// 			const result = getBlockSimilarity(
+	// 				{
+	// 					start: inputLen - i,
+	// 					end: inputLen
+	// 				},
+	// 				{
+	// 					start: 0,
+	// 					end: j
+	// 				}
+	// 			)
+
+	// 			const similarity = result.score / (i + j - result.count);
+	// 			if (similarity > maxSimilarity) {
+	// 				maxOverlap = i;
+	// 				maxSimilarity = similarity;
+	// 			}
+	// 		}
+	// 	}
+
+
+	// 	if (maxSimilarity > this.similarityThreshold) {
+
+	// 		return maxOverlap;
+	// 	} else {
+	// 		return 0;
+	// 	}
+	// }
+
+
+	private _findOverlapBySimilarityLow(
+		input: { text: string }[],
+		target: { text: string }[],
+	): number {
 
 		const commonLength = Math.min(input.length, target.length);
 		if (commonLength === 0) {
@@ -147,7 +307,7 @@ export class TrimNESResponseSuffixOverlap {
 		for (let i = 0; i < commonLength; i++) {
 			const similarity: number[] = [];
 			for (let j = 0; j < i + 1; j++) {
-				similarity.push(getSimilarity(input[start + i].text, target[j].text));
+				similarity.push(this._getLineSimilarity(input[start + i].text, target[j].text));
 			}
 			similarityTable.push(similarity);
 		}
@@ -162,10 +322,8 @@ export class TrimNESResponseSuffixOverlap {
 			scores[i] = sum / (commonLength - i);
 		}
 
-		// Find first position where similarity >= threshold (skip last entry to avoid edge)
-		const endIndex = skipLastLine ? scores.length - 1 : scores.length;
-		for (let i = 0; i < endIndex; i++) {
-			if (scores[i] >= similarityThreshold) {
+		for (let i = 0; i < scores.length; i++) {
+			if (scores[i] >= this.similarityThreshold) {
 				return commonLength - i;
 			}
 		}

@@ -188,6 +188,13 @@
                     "maximum": 1,
                     "minimum": 0
                 },
+                "similarity_precison":{
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "high"
+                    ]
+                },
                 "mode": {
                     "type": "string",
                     "enum": [
@@ -279,6 +286,13 @@
                     "type": "number",
                     "maximum": 1,
                     "minimum": 0
+                },
+                "similarity_precison":{
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "high"
+                    ]
                 },
                 "version": {
                     "type": "string",

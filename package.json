@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.47.20260512",
+	"version": "0.47.20260515",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -5136,6 +5136,13 @@
 										"maximum": 1,
 										"minimum": 0
 									},
+									"similarity_precison":{
+										"type": "string",
+										"enum": [
+											"low",
+											"high"
+										]
+									},
 									"mode": {
 										"type": "string",
 										"enum": [
@@ -5227,6 +5234,13 @@
 										"type": "number",
 										"maximum": 1,
 										"minimum": 0
+									},
+									"similarity_precison":{
+										"type": "string",
+										"enum": [
+											"low",
+											"high"
+										]
 									},
 									"version": {
 										"type": "string",

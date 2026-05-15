@@ -569,9 +569,10 @@ export class GhostTextComputer {
 			const [choicesArray, resultType] = choices;
 			logger.trace(`Final choices: ${choicesArray.length} from ${resultTypeToString(resultType)}`);
 
-			const similarityThreshold = workspace.getConfiguration("github.copilot.hackModels.inline").get("similarity_threshold", 0.5);
+			const similarityThreshold = workspace.getConfiguration("github.copilot.hackModels.inline").get("similarity_threshold", 0.6);
+			const similarityType = workspace.getConfiguration("github.copilot.hackModels.inline").get("similarity_type", "low");
 			const findSimilarityLineNumber = (input: string[], target: string[]): number => {
-				return TrimNESResponseSuffixOverlap.calculateOverlap(input, target, similarityThreshold, true);
+				return new TrimNESResponseSuffixOverlap(similarityThreshold, similarityType).calculateOverlap(input, target);
 			};
 
 			const target_suffixs = prompt.prompt.suffix
