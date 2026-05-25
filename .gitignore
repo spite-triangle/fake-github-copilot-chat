@@ -62,3 +62,4 @@ test/aml/out
 .agents/skills/.local/
 .github/skills/.local/
 *.vsix
+test/simulation/cache
