@@ -82,11 +82,22 @@ export enum ModelSupportedEndpoint {
 	Messages = '/v1/messages'
 }
 
-export interface IModelTokenPrices {
-	batch_size: number;
-	cache_price: number;
+export interface IModelTokenPriceTier {
 	input_price: number;
 	output_price: number;
+	cache_price: number;
+	/**
+	 * The maximum context window size (in tokens) for this pricing tier.
+	 * Present on the `default` tier only when a `long_context` tier also
+	 * exists; always present on the `long_context` tier itself.
+	 */
+	context_max?: number;
+}
+
+export interface IModelTokenPrices {
+	batch_size: number;
+	default: IModelTokenPriceTier;
+	long_context?: IModelTokenPriceTier;
 }
 
 export interface IModelBilling {
@@ -105,13 +116,13 @@ export interface IModelAPIResponse {
 	is_chat_default: boolean;
 	is_chat_fallback: boolean;
 	version: string;
+	baseUrl?: string;
+	apiKey?: string;
+	model?: string;
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
 	billing?: IModelBilling;
 	model_picker_price_category?: string;
-	baseUrl?: string;
-	apiKey?: string;
-	model?: string;
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
 	custom_model?: CustomModel;
@@ -149,6 +160,16 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 }
 
 export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small';
+
+/**
+ * A model family accepted by {@link IEndpointProvider.getChatEndpoint}: either
+ * an internal utility alias ({@link ChatEndpointFamily}) or any CAPI model
+ * family id (e.g. `gemini-3-flash`, `gpt-5-mini`). The utility literals are
+ * kept for editor autocomplete while still allowing arbitrary CAPI family
+ * strings.
+ */
+export type ChatModelFamily = ChatEndpointFamily | (string & {});
+
 export type EmbeddingsEndpointFamily = 'text3small' | 'metis';
 
 export interface IEndpointProvider {
@@ -172,9 +193,10 @@ export interface IEndpointProvider {
 
 	/**
 	 * Given a chat request returns the appropriate chat endpoint to serve that request
-	 * @param requestOrFamily The chat request to get the endpoint for, the family you want the endpoint for, or the LanguageModelChat.
+	 * @param requestOrFamily The chat request to get the endpoint for, the model family you want the
+	 * endpoint for (an internal utility alias or any CAPI model family id), or the LanguageModelChat.
 	 */
-	getChatEndpoint(requestOrFamily: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint>;
+	getChatEndpoint(requestOrFamily: LanguageModelChat | ChatRequest | ChatModelFamily): Promise<IChatEndpoint>;
 
 	/**
 	 * Get the CAPI embedding endpoint information

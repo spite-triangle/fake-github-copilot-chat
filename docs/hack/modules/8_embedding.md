@@ -1,27 +1,10 @@
 # embedding
 
-## 模型参数
+## 模型参数 — modelMaxPromptTokens 动态读取
 
-- 文件 `src\platform\endpoint\common\endpointProvider.ts`
-- 接口： `IEmbeddingModelCapabilities`
-- 状态：**已存在 limits 字段，无需修改**
-
-```ts
-export type IEmbeddingModelCapabilities = {
-    type: 'embeddings';
-    family: string;
-    tokenizer: TokenizerType;
-    limits?: {
-        max_inputs?: number,
-        max_token?: number,
-    };
-};
-```
-
-- 文件 ： `src\platform\endpoint\node\embeddingsEndpoint.ts`
-- 修改 `EmbeddingEndpoint` 类构造函数
-  1. `maxBatchSize` 初始化 — 已匹配，无需修改
-  2. 修改 `modelMaxPromptTokens` 初始化
+- 文件：`src\platform\endpoint\node\embeddingsEndpoint.ts`
+- 类：`EmbeddingEndpoint`
+- 修改：构造函数中 `modelMaxPromptTokens` 初始化
 
 ```ts
 export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
@@ -40,12 +23,11 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 }
 ```
 
+## 远程 embeddings 获取 — 强制 CAPI 路径
 
-## 远程 embeddings 获取
-
-- 文件: `src\platform\embeddings\common\remoteEmbeddingsComputer.ts`
-- 类 ：`RemoteEmbeddingsComputer`
-- 修改函数实现 `computeEmbeddings`
+- 文件：`src\platform\embeddings\common\remoteEmbeddingsComputer.ts`
+- 类：`RemoteEmbeddingsComputer`
+- 修改函数：`computeEmbeddings`
 
 ```ts
     public async computeEmbeddings(
@@ -53,22 +35,24 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
     ): Promise<Embeddings> {
         /* .... */
 
-        // Determine endpoint type: use CAPI for no-auth users, otherwise use GitHub
-        const copilotToken = await this._authService.getCopilotToken();
         // NOTE - 强制开启走 computeCAPIEmbeddings
+        const copilotToken = await this._authService.getCopilotToken();
         if (copilotToken) {
             const embeddings = await this.computeCAPIEmbeddings(inputs, options, cancellationToken);
             return embeddings ?? { type: embeddingType, values: [] };
         }
 
-
         /* ... */
     }
 ```
 
-- 文件 `src\platform\workspaceChunkSearch\node\workspaceChunkSearchService.ts`
+## 工作区搜索 — 绕过认证与固定模型
+
+- 文件：`src\platform\workspaceChunkSearch\node\workspaceChunkSearchService.ts`
 - 类：`WorkspaceChunkSearchService`
-- 修改函数实现 `tryInit`
+- 修改函数：`tryInit`、构造函数
+
+### tryInit 认证校验注释
 
 ```ts
 private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl | undefined> {
@@ -81,29 +65,34 @@ private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl 
         return this._impl;
     }
 
-    const startTime = Date.now();
-    type TryInitOutcome = 'success' | 'noEmbeddingType' | 'alreadyInitialized' | 'error';
-    let outcome: TryInitOutcome = 'noEmbeddingType';
-    try {
-        // const best = await this._availableEmbeddingTypes.getPreferredType(silent);
-        // NOTE - 不获取直接写死
-        const best = new EmbeddingType('text-embedding-3-small-512');
-        // Double check that we haven't initialized in the meantime
-        if (this._impl) {
-            outcome = 'alreadyInitialized';
-            return this._impl;
-        }
-
-        /* ... */
-    } catch {
-        return undefined;
-    }
+    /* ... */
+    const best = new EmbeddingType('text-embedding-3-small-512');
+    /* ... */
 }
 ```
 
+### 认证变更监听注释
+
+```ts
+    constructor(
+        /* ... */
+    ) {
+        super();
+
+        this.tryInit(true);
+
+        // NOTE - 不校验
+        // this._register(this._authenticationService.onDidAuthenticationChange(() => {
+        // 	this.tryInit(true);
+        // }));
+    }
+```
+
+## 可用 embedding 类型 — 硬编码模型
+
 - 文件：`src\platform\workspaceChunkSearch\common\githubAvailableEmbeddingTypes.ts`
 - 类：`GithubAvailableEmbeddingTypesService`
-- 修改：完全重写 `doGetAvailableTypes` 函数
+- 修改函数：`doGetAvailableTypes`（完全重写）
 
 ```ts
 	private async doGetAvailableTypes(token: string): Promise<GetAvailableTypesResult> {

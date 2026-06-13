@@ -43,8 +43,7 @@ export class TrimNESResponseSuffixOverlap {
 
 	public trimEditWithDocument(
 		edit: LineReplacement,
-		doc: StatelessNextEditDocument,
-		similarityThreshold: number = 0.5
+		doc: StatelessNextEditDocument
 	): LineReplacement {
 		// Get document lines after the edit range (i.e., what follows the code_to_edit area)
 		const suffixLines = doc.documentAfterEditsLines.slice(edit.lineRange.endLineNumberExclusive - 1);
@@ -65,7 +64,6 @@ export class TrimNESResponseSuffixOverlap {
 
 	/**
 	 * Apply suffix overlap trimming to each edit.
-	 * @param similarityThreshold - 相似度阈值，默认 0.5 (与 GhostTextComputer 保持一致)
 	 * @deprecated Use trimEditWithDocument() for better integration with NES provider
 	 */
 	public filterEdit(resultDocument: StatelessNextEditDocument, edits: readonly LineReplacement[]): readonly LineReplacement[] {
@@ -168,7 +166,7 @@ export class TrimNESResponseSuffixOverlap {
 				for (let b = 1; b <= targetLen; b++) {
 					const similarityLine = lineSimilarityTable[inputIdx][b - 1];
 
-					if (similarityLine >= 0.8) {
+					if (similarityLine >= 0.9) {
 						db[a][b].count = db[a - 1][b - 1].count + 1;
 						db[a][b].score = db[a - 1][b - 1].score + similarityLine;
 					} else {

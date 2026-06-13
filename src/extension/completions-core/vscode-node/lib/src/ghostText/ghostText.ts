@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CopilotNamedAnnotationList } from '../../../../../../platform/completions-core/common/openai/copilotAnnotations';
-import { ILogService, ILogger } from '../../../../../../platform/log/common/logService';
 import { workspace } from 'vscode';
+import { CopilotNamedAnnotationList } from '../../../../../../platform/completions-core/common/openai/copilotAnnotations';
+import { TrimNESResponseSuffixOverlap } from '../../../../../../platform/inlineEdits/common/trimNESResponseSuffixOverlap';
+import { ILogService, ILogger } from '../../../../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry';
 import { createSha256Hash } from '../../../../../../util/common/crypto';
 import { generateUuid } from '../../../../../../util/vs/base/common/uuid';
@@ -50,7 +51,6 @@ import { BlockTrimmer } from './blockTrimmer';
 import { ICompletionsCacheService } from './completionsCache';
 import { CompletionsFromNetwork, makeGhostAPIChoice } from './completionsFromNetwork';
 import { ICompletionsCurrentGhostText } from './current';
-import { TrimNESResponseSuffixOverlap } from '../../../../../../platform/inlineEdits/common/trimNESResponseSuffixOverlap';
 import { getGhostTextStrategy } from './ghostTextStrategy';
 import { RequestContext } from './requestContext';
 import { ResultType } from './resultType';
@@ -150,6 +150,7 @@ export class GhostTextComputer {
 		parentLogger: ILogger,
 	): Promise<GhostTextResultWithTelemetry<[CompletionResult[], ResultType]>> {
 		const id = generateUuid();
+		telemetryBuilder.setHeaderRequestId(id);
 		const logger = parentLogger.createSubLogger(['GhostTextComputer#getGhostText']);
 		this.currentGhostText.currentRequestId = id;
 		const telemetryData = await this.instantiationService.invokeFunction(createTelemetryWithExp, completionState.textDocument, id, options);
@@ -354,6 +355,7 @@ export class GhostTextComputer {
 			const fullText = completionState.textDocument.getText();
 			prompt.prompt.suffix = fullText.substring(offset).replaceAll('\r', '').replace(/^.*?\n/, '');
 			// NOTE - 修正结束
+
 			const originalPrompt = prompt.prompt;
 			const ghostTextStrategy = await this.instantiationService.invokeFunction(getGhostTextStrategy,
 				completionState,
@@ -568,7 +570,6 @@ export class GhostTextComputer {
 			const [choicesArray, resultType] = choices;
 			logger.trace(`Final choices: ${choicesArray.length} from ${resultTypeToString(resultType)}`);
 
-			
 			//  NOTE - 后缀修正
 			const similarityThreshold = workspace.getConfiguration("github.copilot.hackModels.inline").get("similarity_threshold", 0.6);
 			const similarityType = workspace.getConfiguration("github.copilot.hackModels.inline").get("similarity_type", "low");
@@ -606,7 +607,7 @@ export class GhostTextComputer {
 			}
 			//  NOTE - 后缀修正
 
-const postProcessedChoicesArray = choicesArray
+			const postProcessedChoicesArray = choicesArray
 				.map(c =>
 					this.instantiationService.invokeFunction(postProcessChoiceInContext,
 						completionState.textDocument,
@@ -690,6 +691,11 @@ const postProcessedChoicesArray = choicesArray
 				// Update the current ghost text with the new response before returning for the "typing as suggested" UX
 				this.currentGhostText.setGhostText(prefix, prompt.prompt.suffix, postProcessedChoicesArray, resultType);
 			}
+
+			// Overwrite the early fallback `headerRequestId` (set to `id` at the top) with the
+			// winning choice's actual `headerRequestId`. They differ when the result came from
+			// a local cache hit or an in-flight async request produced by a different invocation.
+			telemetryBuilder.setHeaderRequestId(postProcessedChoicesArray[0]?.requestId.headerRequestId ?? ourRequestId);
 
 			recordPerformance('complete');
 			logger.trace(`Ghost text computation complete, returning ${results.length} results`);

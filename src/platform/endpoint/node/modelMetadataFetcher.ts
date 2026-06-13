@@ -5,14 +5,14 @@
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import type { LanguageModelChat } from 'vscode';
+import { workspace } from 'vscode';
 import { TaskSingler } from '../../../util/common/taskSingler';
+import { TokenizerType } from '../../../util/common/tokenizer';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 
-import { workspace } from 'vscode';
-import { TokenizerType } from '../../../util/common/tokenizer';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
@@ -20,7 +20,8 @@ import { GitHubOutageStatus, IOctoKitService } from '../../github/common/githubS
 import { ILogService } from '../../log/common/logService';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { IChatModelCapabilities, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, ModelSupportedEndpoint, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
+import { getModelCapabilityOverride } from '../common/chatModelCapabilities';
+import { IChatModelCapabilities, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 
 export interface IModelMetadataFetcher {
 
@@ -198,12 +199,18 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	public async getChatModelFromApiModel(apiModel: LanguageModelChat): Promise<IChatModelInformation | undefined> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
+		// `apiModel.family` may have been rewritten by a configured capability
+		// override (see `chat.modelCapabilityOverrides`). When an override is
+		// configured for this model id, drop the family check entirely and rely
+		// on id + version to uniquely identify the CAPI model (the picker would
+		// otherwise carry the overridden family and never re-match the real one).
+		const hasOverride = getModelCapabilityOverride(apiModel.id, this._configService)?.family !== undefined;
 		let resolvedModel: IModelAPIResponse | undefined;
 		for (const models of this._familyMap.values()) {
 			resolvedModel = models.find(model =>
 				model.id === apiModel.id &&
 				model.version === apiModel.version &&
-				model.capabilities.family === apiModel.family);
+				(hasOverride || model.capabilities.family === apiModel.family));
 			if (resolvedModel) {
 				break;
 			}
@@ -271,12 +278,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 					name: base_config.get("model", "gpt-5.2"),
 					is_chat_default: base_config.get("is_chat_default", true),
 					is_chat_fallback: true,
-					model_picker_enabled: base_config.get("model_picker_enabled", true),
+					model_picker_enabled: base_config.get("model_picker_enabled", false),
 					version: base_config.get("version", "v1.0.0"),
 					supported_endpoints: base_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
 					capabilities: {
 						type: "chat",
-						family: "claude-gpt-5-mini",
+						family: "gpt-5-mini",
 						tokenizer: base_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_context_window_tokens: base_config.get("capabilities.limits.max_context_window_tokens", 128000),
@@ -435,10 +442,10 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 					item.model_picker_enabled = true;
 					item.supported_endpoints = item.supported_endpoints ? item.supported_endpoints : [ModelSupportedEndpoint.ChatCompletions];
 
-
 					item.capabilities.type = "chat";
 					var cap = item.capabilities as IChatModelCapabilities;
 
+					// 为 limits 设置默认值
 					if (cap.limits == undefined) {
 						cap.limits = {
 							max_context_window_tokens: 128000,
@@ -446,6 +453,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 							max_prompt_tokens: 64000
 						};
 					} else {
+						// 为已存在的 limits 设置默认值
 						cap.limits.max_context_window_tokens = cap.limits.max_context_window_tokens ?? 128000;
 						cap.limits.max_output_tokens = cap.limits.max_output_tokens ?? Math.floor(cap.limits.max_context_window_tokens * 0.25);
 						cap.limits.max_prompt_tokens = cap.limits.max_prompt_tokens ?? Math.floor(cap.limits.max_context_window_tokens * 0.5);
@@ -468,6 +476,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			for (let model of models) {
 				model = await this._hydrateResolvedModel(model);
 				const isCompletionModel = isCompletionModelInformation(model);
+				// The base model is whatever model is deemed "fallback" by the server
 				if (model.is_chat_fallback && !isCompletionModel) {
 					this._copilotUtilityModel = model;
 				}
@@ -514,6 +523,15 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		// If there's an experiment that takes precedence over what comes back from CAPI
 		if (experimentalOverrides[chatModelInfo.id]) {
 			modelLimit += experimentalOverrides[chatModelInfo.id];
+			return modelLimit;
+		}
+
+		// When a long context tier exists, use max_context_window_tokens as the
+		// prompt token basis so users can opt into the full context window via
+		// the model picker. The configurationSchema default (defaultContextMax)
+		// ensures users aren't billed at the long-context rate without explicit opt-in.
+		if (chatModelInfo.billing?.token_prices?.long_context && chatModelInfo.capabilities?.limits?.max_context_window_tokens) {
+			modelLimit += chatModelInfo.capabilities.limits.max_context_window_tokens;
 			return modelLimit;
 		}
 

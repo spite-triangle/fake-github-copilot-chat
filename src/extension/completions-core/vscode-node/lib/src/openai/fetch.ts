@@ -168,7 +168,6 @@ function uiKindToIntent(uiKind: CopilotUiKind): string | undefined {
 	}
 }
 
-
 function addCommentByLanguageId(text: string, languageId: string): string {
 	const lang = languageId.toLowerCase();
 
@@ -226,6 +225,7 @@ function addCommentByLanguageId(text: string, languageId: string): string {
 
 	return text;
 }
+
 // Request methods
 
 export interface CopilotError {
@@ -474,15 +474,6 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			const inline_model = inline_config.get("model", "") as string;
 			const inline_delay = inline_config.get("capabilities.limits.delay", 100) as number;
 
-			if (inline_delay > 0) {
-				for (let i = 0; i < inline_delay / 20; i++) {
-					if (cancel?.isCancellationRequested) {
-						return { type: 'canceled', reason: 'wait request delay' };
-					}
-					await delay(20);
-				}
-			}
-
 			const model_config = workspace.getConfiguration("github.copilot.hackModels");
 			const frequency_penalty = model_config.get("frequency_penalty", undefined) as number | undefined;
 			const presence_penalty = model_config.get("presence_penalty", undefined) as number | undefined;
@@ -587,9 +578,9 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 				}
 			}
 
-			const token = inline_token.length > 0 ? inline_token : copilotToken.token;
 			const requestSw = new StopWatch();
 			const cancelToken = cancel ?? CancellationToken.None;
+			const token = inline_token.length > 0 ? inline_token : copilotToken.token;
 			const res = await this.fetchService.fetch(
 				uri,
 				token,
@@ -604,7 +595,7 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 					return this.fetchService.disconnectAll().then(() => {
 						return this.fetchService.fetch(
 							uri,
-							copilotToken.token,
+							token,
 							request,
 							ourRequestId,
 							cancelToken,

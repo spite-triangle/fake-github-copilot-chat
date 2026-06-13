@@ -17,6 +17,7 @@ import { IGitCommitMessageService } from '../../../platform/git/common/gitCommit
 import { ILogService } from '../../../platform/log/common/logService';
 import { ISettingsEditorSearchService } from '../../../platform/settingsEditor/common/settingsEditorSearchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+
 import { isUri } from '../../../util/common/types';
 import { DeferredPromise } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -161,8 +162,8 @@ export class ConversationFeature implements IExtensionContribution {
 		} else {
 			this._searchProviderRegistered = true;
 
-			// Don't register for no auth user
-			if (this.authenticationService.copilotToken?.isNoAuthUser) {
+			// Don't register for no auth user or BYOK-only users
+			if (!this.authenticationService.anyGitHubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
 				this.logService.debug('ConversationFeature: Skipping search provider registration - no GitHub session available');
 				return;
 			}
@@ -181,6 +182,13 @@ export class ConversationFeature implements IExtensionContribution {
 		}
 
 		this._settingsSearchProviderRegistered = true;
+
+		// Don't register for no auth user or or BYOK-only users
+		if (!this.authenticationService.anyGitHubSession || this.authenticationService.copilotToken?.isNoAuthUser) {
+			this.logService.debug('ConversationFeature: Skipping settings search provider registration - no GitHub session available');
+			return;
+		}
+
 		return vscode.ai.registerSettingsSearchProvider(this.settingsEditorSearchService);
 	}
 
@@ -208,6 +216,11 @@ export class ConversationFeature implements IExtensionContribution {
 	}
 
 	private registerParticipantDetectionProvider() {
+		// Many BYOK models are slow and we don't want to risk invalid detection with those, at least for now.
+		if (!this.authenticationService.anyGitHubSession) {
+			return;
+		}
+
 		if ('registerChatParticipantDetectionProvider' in vscode.chat) {
 			const provider = this.instantiationService.createInstance(IntentDetector);
 			return vscode.chat.registerChatParticipantDetectionProvider(provider);
@@ -333,14 +346,6 @@ export class ConversationFeature implements IExtensionContribution {
 			)
 		].forEach(d => disposables.add(d));
 		return disposables;
-	}
-
-	private registerCopilotTokenListener() {
-		this._disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
-			const chatEnabled = this.authenticationService.copilotToken !== undefined;
-			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken?.sku ?? ''}`);
-			this.enabled = chatEnabled ?? false;
-		}));
 	}
 
 	private registerTerminalQuickFixProviders() {

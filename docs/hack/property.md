@@ -340,6 +340,13 @@
 										"type": "string",
 										"default": "v1.0.0"
 									},
+									"encoding_format":{
+										"type": "string",
+										"enum": [
+											"float",
+											"base64"
+										]
+									},
 									"capabilities": {
 										"type": "object",
 										"properties": {

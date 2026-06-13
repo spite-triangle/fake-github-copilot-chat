@@ -168,7 +168,7 @@ export class TrimNESResponseSuffixOverlap {
 				for (let b = 1; b <= targetLen; b++) {
 					const similarityLine = lineSimilarityTable[inputIdx][b - 1];
 
-					if (similarityLine >= 0.8) {
+					if (similarityLine >= 0.9) {
 						db[a][b].count = db[a - 1][b - 1].count + 1;
 						db[a][b].score = db[a - 1][b - 1].score + similarityLine;
 					} else {
@@ -200,95 +200,6 @@ export class TrimNESResponseSuffixOverlap {
 			return 0;
 		}
 	}
-
-
-	// private _findOverlapBySimilarityHigh(
-	// 	input: { text: string }[],
-	// 	target: { text: string }[]
-	// ): number {
-
-	// 	const commonLen = Math.min(input.length, target.length);
-	// 	if (commonLen === 0) { return 0; }
-	// 	const maxLen = Math.floor(commonLen / Math.min(this.similarityThreshold + 0.05, 1));
-	// 	const inputLen = Math.min(input.length, maxLen);
-	// 	const targetLen = Math.min(target.length, maxLen);
-
-	// 	// 行相似度表
-	// 	const lineSimilarityTable: number[][] = [];
-	// 	for (let i = 0; i < inputLen; i++) {
-	// 		lineSimilarityTable[i] = []
-	// 		for (let j = 0; j < targetLen; j++) {
-	// 			lineSimilarityTable[i][j] = this._getLineSimilarity(input[i].text, target[j].text);
-	// 		}
-	// 	}
-
-
-	// 	// inputRange 的行做 count 次增加行、删减行，便能与 targetRange 的行一样
-	// 	const getBlockSimilarity = (inputRange: { start: number, end: number }, targetRange: { start: number, end: number }) => {
-	// 		const inputRangeLen = inputRange.end - inputRange.start;
-	// 		const targetRangeLen = targetRange.end - targetRange.start;
-
-	// 		const db: { count: number, score: number }[][] = [];
-	// 		for (let i = 0; i <= inputRangeLen; i++) {
-	// 			db[i] = [];
-	// 			for (let j = 0; j <= targetRangeLen; j++) {
-	// 				db[i].push({ count: 0, score: 0 })
-	// 			}
-	// 		}
-
-	// 		for (let i = 1; i <= inputRangeLen; i++) {
-	// 			for (let j = 1; j <= targetRangeLen; j++) {
-	// 				const similarityLine = lineSimilarityTable[inputRange.start + i - 1][targetRange.start + j - 1];
-
-	// 				if (similarityLine >= 0.8) {
-	// 					db[i][j].count = db[i - 1][j - 1].count + 1;
-	// 					db[i][j].score = db[i - 1][j - 1].score + similarityLine;
-	// 				} else {
-	// 					if (db[i][j - 1].count > db[i - 1][j].count) {
-	// 						db[i][j].count = db[i][j - 1].count;
-	// 						db[i][j].score = db[i][j - 1].score;
-	// 					} else {
-	// 						db[i][j].count = db[i - 1][j].count;
-	// 						db[i][j].score = db[i - 1][j].score;
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 		return db[inputRangeLen][targetRangeLen];
-	// 	}
-
-	// 	let maxOverlap = 0;
-	// 	let maxSimilarity = 0;
-
-	// 	for (let i = 1; i <= inputLen; i++) {
-	// 		for (let j = 1; j <= targetLen; j++) {
-	// 			const result = getBlockSimilarity(
-	// 				{
-	// 					start: inputLen - i,
-	// 					end: inputLen
-	// 				},
-	// 				{
-	// 					start: 0,
-	// 					end: j
-	// 				}
-	// 			)
-
-	// 			const similarity = result.score / (i + j - result.count);
-	// 			if (similarity > maxSimilarity) {
-	// 				maxOverlap = i;
-	// 				maxSimilarity = similarity;
-	// 			}
-	// 		}
-	// 	}
-
-
-	// 	if (maxSimilarity > this.similarityThreshold) {
-
-	// 		return maxOverlap;
-	// 	} else {
-	// 		return 0;
-	// 	}
-	// }
 
 
 	private _findOverlapBySimilarityLow(

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vscode';
+
 import { AuthPermissionMode, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { authProviderId, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
 
@@ -21,15 +22,15 @@ export type CopilotAuthenticationSession = {
 };
 
 async function getAuthSession(providerId: string, defaultScopes: string[], getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
-    return {
-        id: '855414255f361cfd',
-        account: {
-            label: 'guest',
-            id: '1234'
-        },
-        scopes: ["user:email"],
-        accessToken: 'xx',
-    } as AuthenticationSession;
+	return {
+		id: '855414255f361cfd',
+		account: {
+			label: 'guest',
+			id: '1234'
+		},
+		scopes: ["user:email"],
+		accessToken: 'xx',
+	} as AuthenticationSession;
 }
 
 /**

@@ -5,6 +5,7 @@
 
 
 import * as l10n from '@vscode/l10n';
+import { Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { ChatLocation } from '../../../platform/chat/common/commonTypes';
@@ -19,7 +20,6 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { TerminalQuickFixFileContextPrompt, TerminalQuickFixPrompt } from '../../prompts/node/panel/terminalQuickFix';
-import { Raw } from '@vscode/prompt-tsx';
 
 const enum CommandRelevance {
 	Low = 1,
@@ -76,6 +76,14 @@ function parseRelevance(relevance: 'low' | 'medium' | 'high'): CommandRelevance 
 		case 'medium': return CommandRelevance.Medium;
 		case 'low': return CommandRelevance.Low;
 	}
+}
+
+/**
+ * Sanitize a JSON-ish string by removing trailing commas before `]` and `}`.
+ * LLMs sometimes generate JavaScript-style trailing commas which are invalid JSON.
+ */
+function sanitizeJsonString(input: string): string {
+	return input.replace(/,\s*([}\]])/g, '$1');
 }
 
 export interface ICommandSuggestion {
@@ -231,7 +239,7 @@ class TerminalQuickFixGenerator {
 		try {
 			// The result may come in a md fenced code block
 			const codeblocks = extractCodeBlocks(fetchResult.value);
-			const json = JSON.parse(codeblocks.length > 0 ? codeblocks[0].code : fetchResult.value) as unknown;
+			const json = JSON.parse(sanitizeJsonString(codeblocks.length > 0 ? codeblocks[0].code : fetchResult.value)) as unknown;
 			if (json && Array.isArray(json)) {
 				for (const entry of (json as unknown[])) {
 					if (typeof entry === 'object' && entry) {
@@ -290,7 +298,8 @@ class TerminalQuickFixGenerator {
 		// Parse result json
 		const parsedResults: { fileName: string }[] = [];
 		try {
-			const json = JSON.parse(fetchResult.value) as unknown;
+			const codeblocks = extractCodeBlocks(fetchResult.value);
+			const json = JSON.parse(sanitizeJsonString(codeblocks.length > 0 ? codeblocks[0].code : fetchResult.value)) as unknown;
 			if (json && Array.isArray(json)) {
 				for (const entry of (json as unknown[])) {
 					if (typeof entry === 'object' && entry) {

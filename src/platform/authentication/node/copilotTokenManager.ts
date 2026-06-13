@@ -16,6 +16,7 @@ import { NullBaseOctoKitService } from '../../github/common/nullOctokitServiceIm
 import { ILogService } from '../../log/common/logService';
 import { FetchOptions, IFetcherService, Response, jsonVerboseError } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
+
 import { CopilotToken, CopilotUserInfo, ErrorEnvelope, ExtendedTokenInfo, StandardErrorEnvelope, TokenEnvelope, TokenInfoOrError, TokenValidationResult, containsVSCodeOrg, createTestExtendedTokenInfo, isErrorEnvelope, isStandardErrorEnvelope, validateTokenEnvelope } from '../common/copilotToken';
 import { CheckCopilotToken, ICopilotTokenManager, NotGitHubLoginFailed, nowSeconds } from '../common/copilotTokenManager';
 
@@ -159,26 +160,18 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 		let userInfo: CopilotUserInfo | undefined;
 
 		const tokenInfo: TokenEnvelope = {
-			// Required fields
 			token: "tid=70b36c9e-ea08-48c2-b28e-0dd535b39982",
 			expires_at: 2770033513,
 			refresh_in: 1500000,
 			sku: "copilot_for_business_seat_quota",
 			individual: false,
-
-			// Feature flags
-			blackbird_clientside_indexing: true,
+			blackbird_clientside_indexing: false,
 			code_quote_enabled: true,
-			code_review_enabled: true,
-			codesearch: true,
+			code_review_enabled: false,
+			codesearch: false,
 			copilotignore_enabled: false,
-
-			// Consent settings
 			public_suggestions: 'disabled',
 			telemetry: 'disabled',
-
-			// Optional fields
-			/** SKU-isolated endpoints. */
 			endpoints: {
 				api: "https://xxxx",
 				"origin-tracker": "https://xxxx",
@@ -188,12 +181,11 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 			enterprise_list: null,
 			limited_user_quotas: null,
 			limited_user_reset_date: null,
-			organization_list: ["551cca60ce19654d894e786220822482"]
+			organization_list: ["184531bbdd2fc3x8eee45c6c7e42aeb6"]
 		};
 
-		tokenInfo.expires_at = nowSeconds() + tokenInfo.refresh_in + 60; // extra buffer to allow refresh to happen successfully
+		tokenInfo.expires_at = nowSeconds() + tokenInfo.refresh_in + 60;
 
-		// extend the token envelope
 		const login = 'gust';
 		const extendedInfo: ExtendedTokenInfo = {
 			...tokenInfo,

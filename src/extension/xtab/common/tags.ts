@@ -21,10 +21,8 @@ export namespace PromptTags {
 	export const EDIT_WINDOW = createTag('code_to_edit');
 
 	export const AREA_AROUND = createTag('area_around_code_to_edit');
-
 	export const AREA_CODE_PREFIX = createTag('area_code_prefix');
 	export const AREA_CODE_SUFFIX = createTag('area_code_suffix');
-
 	export const CURRENT_FILE = createTag('current_file_content');
 
 	export const CURSOR_LOCATION = createTag('cursor_location');

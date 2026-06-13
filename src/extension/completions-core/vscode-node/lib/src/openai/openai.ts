@@ -59,7 +59,7 @@ export function convertToAPIChoice(
 	blockFinished: boolean,
 	telemetryData: TelemetryWithExp
 ): APIChoice {
-	// NOTE - 需要注释掉，不然会崩溃
+	logEngineCompletion(accessor, completionText, jsonData, requestId, choiceIndex);
 	// logEngineCompletion(accessor, completionText, jsonData, requestId, choiceIndex);
 
 	// NOTE: It's possible that the completion text we care about is not exactly jsonData.text but a prefix,

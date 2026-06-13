@@ -127,6 +127,7 @@ export interface IEndpointBody {
 	thinking_budget?: number;
 	frequency_penalty?: number;
 	presence_penalty?: number;
+	encoding_format?: string;
 }
 
 export interface IEndpointFetchOptions {
@@ -151,6 +152,26 @@ export function stringifyUrlOrRequestMetadata(urlOrRequestMetadata: string | Req
 		return urlOrRequestMetadata;
 	}
 	return JSON.stringify(urlOrRequestMetadata);
+}
+
+/**
+ * Whether the given value is {@link RequestMetadata} (routed through CAPI) rather
+ * than a literal URL string (fetched directly, e.g. BYOK / custom endpoints).
+ *
+ * This is the exact discriminant used by `networkRequest`: a `RequestMetadata`
+ * object is dispatched via {@link ICAPIClientService.makeRequest}, whereas a
+ * `string` URL is sent straight to {@link IFetcherService.fetch}.
+ */
+export function isCAPIRequestMetadata(urlOrRequestMetadata: string | RequestMetadata): urlOrRequestMetadata is RequestMetadata {
+	return typeof urlOrRequestMetadata !== 'string';
+}
+
+/**
+ * Whether requests for this endpoint are routed through CAPI (the Copilot proxy)
+ * rather than fetched directly from a literal URL (BYOK / custom endpoints).
+ */
+export function isCAPIEndpoint(endpoint: IEndpoint): boolean {
+	return isCAPIRequestMetadata(endpoint.urlOrRequestMetadata);
 }
 
 export interface IEmbeddingsEndpoint extends IEndpoint {
@@ -256,6 +277,8 @@ export type IChatRequestTelemetryProperties = {
 	parentHeaderRequestId?: string;
 	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The conversation turn index, matching the panel.request turn measurement. */
+	turnIndex?: string;
 	/** The 0-based iteration number of the tool-calling loop that produced this request. */
 	iterationNumber?: string;
 };
@@ -266,15 +289,36 @@ export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 }
 
 /**
- * Normalized token pricing in AICs per million tokens.
+ * A single tier of normalized token pricing in AICs per million tokens.
  */
-export interface IChatEndpointTokenPricing {
+export interface ITokenPriceTier {
 	/** Cost in AICs per million input tokens */
 	readonly inputPrice: number;
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
 	readonly cacheReadTokenPrice: number;
+	/**
+	 * The largest prompt size (in tokens) billed at this tier's rates.
+	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Present only when CAPI provides a `long_context` tier.
+	 */
+	readonly contextMax?: number;
+}
+
+/**
+ * Normalized token pricing in AICs per million tokens, mirroring the CAPI
+ * tiered structure with explicit `default` and optional `longContext` tiers.
+ */
+export interface IChatEndpointTokenPricing {
+	/** Default-context tier pricing. */
+	readonly default: ITokenPriceTier;
+	/**
+	 * Long-context tier pricing, present only when its rates differ from the
+	 * default tier. When absent the model either has no long-context tier or
+	 * its prices match the default tier.
+	 */
+	readonly longContext?: ITokenPriceTier;
 }
 
 export interface IChatEndpoint extends IEndpoint {
@@ -301,8 +345,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly restrictedToSkus?: string[];
 	/**
 	 * Normalized token pricing in AICs per million tokens.
-	 * Computed from the raw billing token_prices by dividing by 1_000_000_000
-	 * and normalizing to per-million-token rates based on batch_size.
+	 * Computed from the raw billing token_prices and normalized
+	 * to per-million-token rates based on batch_size.
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
@@ -310,6 +354,15 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
 	readonly maxPromptImages?: number;
+	/**
+	 * When true, this endpoint owns its own credentials via {@link IEndpoint.getExtraHeaders}
+	 * (e.g. a BYOK target with a user-supplied `api-key`, `x-api-key`, or `Authorization`) and
+	 * the chat fetcher must not fall back to the CAPI Copilot token for the `Authorization`
+	 * header. Prevents leaking the user's CAPI bearer token to third-party endpoints, and
+	 * avoids over-sending an unintended `Authorization: Bearer …` to gateways (strict
+	 * APIM policies, etc.) that validate the header.
+	 */
+	readonly ownsAuthorization?: boolean;
 	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service
@@ -388,7 +441,7 @@ export function createCapiRequestBody(options: ICreateEndpointBodyOptions, model
 export interface INetworkRequestOptions {
 	readonly requestType: 'GET' | 'POST';
 	readonly endpointOrUrl: IEndpoint | string | RequestMetadata;
-	readonly secretKey: string;
+	readonly secretKey: string | undefined;
 	readonly intent: string;
 	readonly requestId: string;
 	readonly body?: IEndpointBody;
@@ -415,12 +468,13 @@ export interface INetworkRequestOptions {
  *   branch name suggestion, background todo processing).
  */
 export type InteractionTypeOverride = 'conversation-subagent' | 'conversation-compaction' | 'conversation-background';
+
 /**
  * 根据模型名称获取配置
-	 * @param model 模型名称
-	 * @returns 配置对象 { baseUrl, apiKey, model }
-	 */
-function getModelConfig(model: string | undefined): { baseUrl: string; apiKey: string; model: string } | undefined {
+ * @param model 模型名称
+ * @returns 配置对象 { baseUrl, apiKey, model }
+ */
+function getModelConfig(model: string | undefined): { baseUrl: string; apiKey: string; model: string; encoding_format?: string } | undefined {
 	if (!model) return undefined;
 
 	const models = workspace.getConfiguration('github.copilot.hackModels');
@@ -440,6 +494,7 @@ function getModelConfig(model: string | undefined): { baseUrl: string; apiKey: s
 			baseUrl: config.get('baseUrl', ''),
 			apiKey: config.get('apiKey', ''),
 			model: config.get('model', model),
+			encoding_format: config.get('encoding_format', 'float'),
 		};
 	} else if (model === 'gpt-4.1' || model === 'gpt-4o-mini') {
 		const config = workspace.getConfiguration('github.copilot.hackModels.fast');
@@ -468,7 +523,6 @@ function getModelConfig(model: string | undefined): { baseUrl: string; apiKey: s
 	}
 	return undefined;
 }
-
 
 function networkRequest(
 	accessor: ServicesAccessor,
@@ -503,6 +557,10 @@ function networkRequest(
 			apiKey = modelConfig.apiKey;
 			url = modelConfig.baseUrl;
 			body.model = modelConfig.model;
+
+			if (body.encoding_format === undefined) {
+				body.encoding_format = modelConfig.encoding_format;
+			}
 
 			// 根据 RequestType 设置 URL 路径
 			if (typeof endpoint.urlOrRequestMetadata !== 'string' && 'type' in endpoint.urlOrRequestMetadata) {
@@ -544,7 +602,7 @@ function networkRequest(
 	const headers: ReqHeaders = {
 		Authorization: `Bearer ${apiKey}`,
 		'X-Request-Id': requestId,
-		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
+		'OpenAI-Intent': intent,
 		'X-GitHub-Api-Version': '2026-01-09',
 		...additionalHeaders,
 		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location, options.interactionTypeOverride) : {}),
@@ -570,19 +628,16 @@ function networkRequest(
 	if (cancelToken) {
 		const abort = fetcher.makeAbortController();
 		cancelToken.onCancellationRequested(() => {
-			// abort the request when the token is canceled
 			telemetryService.sendGHTelemetryEvent('networking.cancelRequest', {
 				headerRequestId: requestId,
 			});
 			abort.abort();
 		});
-		// pass the controller abort signal to the request
 		request.signal = abort.signal;
 	}
 	if (typeof endpoint.urlOrRequestMetadata === 'string') {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
-				// disconnect and retry the request once if the connection was reset
 				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
 				return fetcher.disconnectAll().then(() => {
 					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
@@ -612,7 +667,13 @@ function networkRequest(
 			try {
 				const resp = await fetcher.fetch(uri, request);
 				if (!resp.ok && attempt < maxRetries) {
-					logService.warn(`[networking] Retry attempt ${attempt + 1}/${maxRetries} for request ${requestId}, status: ${resp.status}`);
+					let errorText = '';
+					try {
+						errorText = await resp.text();
+					} catch {
+						// ignore error parsing response text
+					}
+					logService.warn(`[networking] Retry attempt ${attempt + 1}/${maxRetries} for request ${requestId}, status: ${resp.status}, error: ${errorText}`);
 					await fetcher.disconnectAll();
 					await new Promise(resolve => setTimeout(resolve, retryDelayMs));
 					return fetchWithRetry(attempt + 1);
@@ -623,8 +684,7 @@ function networkRequest(
 					throw new CancellationError();
 				}
 				if (attempt < maxRetries) {
-					logService.warn(`[networking] Retry attempt ${attempt + 1}/${maxRetries} for request ${requestId}, error: ${reason?.code || reason}`);
-					// Wait for retry delay before retrying
+					logService.warn(`[networking] Retry attempt ${attempt + 1}/${maxRetries} for request ${requestId}, error: ${reason instanceof Error ? reason.message : reason}`);
 					await fetcher.disconnectAll();
 					await new Promise(resolve => setTimeout(resolve, retryDelayMs));
 					return fetchWithRetry(attempt + 1);

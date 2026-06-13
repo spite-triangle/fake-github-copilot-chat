@@ -23,6 +23,8 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 		@ITokenizerProvider private readonly _tokenizerProvider: ITokenizerProvider
 	) {
 		this.maxBatchSize = this._modelInfo.capabilities.limits?.max_inputs ?? 256;
+
+		// NOTE - 修改 modelMaxPromptTokens
 		this.modelMaxPromptTokens = this._modelInfo.capabilities.limits?.max_token ?? 8192;
 	}
 

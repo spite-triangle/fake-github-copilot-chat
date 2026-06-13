@@ -116,9 +116,10 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 
 		this.tryInit(true);
 
-		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			this.tryInit(true);
-		}));
+		// NOTE - 不校验
+		// this._register(this._authenticationService.onDidAuthenticationChange(() => {
+		// 	this.tryInit(true);
+		// }));
 	}
 
 	private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl | undefined> {
@@ -135,7 +136,6 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 		type TryInitOutcome = 'success' | 'noEmbeddingType' | 'alreadyInitialized' | 'error';
 		let outcome: TryInitOutcome = 'noEmbeddingType';
 		try {
-			// const best = await this._availableEmbeddingTypes.getPreferredType(silent);
 			// NOTE - 不获取直接写死
 			const best = new EmbeddingType('text-embedding-3-small-512');
 			// Double check that we haven't initialized in the meantime
